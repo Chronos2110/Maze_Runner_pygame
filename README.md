@@ -1,126 +1,83 @@
-# 🧩 Maze Runner
+# Maze Runner
 
-A 2D arcade-style maze game built with **Python** and **Pygame**. Navigate handcrafted mazes, collect every coin, and reach the exit — all before the clock runs out.
+A grid-based arcade game written in Python with Pygame. Collect every coin in the maze to unlock the exit gate, then reach it before the countdown hits zero.
 
-
-
----
-
-## 📸 Overview
-
-Maze Runner is a grid-based arcade game featuring three handcrafted levels of increasing difficulty. Built entirely with Python and Pygame — no external image or sound assets required — it demonstrates core game-development concepts including delta-time movement, state management, and rectangle-based collision detection.
+No external assets — every wall, coin, and animation is drawn with Pygame's drawing API.
 
 ---
 
-## ✨ Features
+## How it works
 
-| Feature | Details |
-|---|---|
-| 🗺️ **Levels** | 3 handcrafted mazes with increasing difficulty |
-| 🏃 **Movement** | Smooth, frame-rate-independent movement via delta time |
-| 🪙 **Coin System** | Collect all coins to unlock the exit (+100 pts each) |
-| ⏱️ **Timer** | Per-level countdown adds urgency |
-| ⏸️ **Pause / Resume** | Toggle at any time with `Escape` |
-| 🏆 **Screens** | Victory and game-over screens with score display |
-| 🎨 **Custom Graphics** | All visuals drawn programmatically with Pygame — zero external assets |
+The maze is a 24×16 grid of ASCII tiles (`W` wall · `C` coin · `P` start · `E` exit · ` ` open floor). `maze.py` converts that grid into `pygame.Rect` objects; `main.py` moves the player, checks collisions, and runs the game-state machine. All tuneable values (speed, tile size, colours, level layouts) live in `constants.py`.
+
+Movement uses **delta time** — displacement is `speed × elapsed_seconds`, not `speed × 1 frame` — so the game runs at the same pace regardless of frame rate. Collision resolution happens one axis at a time (horizontal first, then vertical), which lets the player slide along walls instead of stopping dead on contact.
 
 ---
 
-## 🕹️ Controls
+## Levels
 
-| Key | Action |
-|---|---|
-| `Arrow Keys` / `W A S D` | Move the player |
-| `Escape` | Pause / Resume |
-| Close Window | Quit the game |
+| # | Name | Time limit | Coins |
+|---|------|-----------|-------|
+| 1 | Warm-Up | 75 s | 4 |
+| 2 | Twisty Halls | 70 s | 5 |
+| 3 | The Gauntlet | 65 s | 5 |
+
+The exit gate shows a red ✕ until every coin is collected, then turns green with a ✓.
 
 ---
 
-## 🚀 Getting Started
+## Controls
 
-### Prerequisites
+| Input | Action |
+|-------|--------|
+| Arrow keys / WASD | Move |
+| P or Escape | Pause / resume |
+| R (while paused) | Restart from Level 1 |
+| Enter / Space | Confirm on menu screens |
+| Close window | Quit |
 
-- Python **3.10** or later
-- Git *(optional, for cloning)*
+---
 
-### 1 — Clone the repository
+## Setup
+
+Requires Python 3.10+ and pip.
 
 ```bash
 git clone https://github.com/Chronos2110/Maze_Runner_pygame.git
 cd Maze_Runner_pygame
-```
-
-### 2 — Create a virtual environment
-
-**Windows (PowerShell)**
-```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
 
-**macOS / Linux**
-```bash
-python3 -m venv .venv
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
 source .venv/bin/activate
-```
 
-### 3 — Install dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-### 4 — Run the game
-
-```bash
 python main.py
 ```
 
 ---
 
-## 📁 Project Structure
+## Project layout
 
 ```
-Maze_Runner_pygame/
-├── main.py           # Player movement, game logic, states, and rendering
-├── maze.py           # Level loading and maze object creation
-├── constants.py      # Screen settings, colours, and maze layouts
-├── requirements.txt  # Python dependencies
-├── .gitignore        # Files excluded from version control
-└── README.md         # Project documentation
+├── main.py        — game loop, Player class, Game state machine, rendering
+├── maze.py        — parses ASCII level layouts into pygame.Rect objects
+├── constants.py   — screen size, colours, player speed, all three level grids
+└── requirements.txt
 ```
 
 ---
 
-## 🧠 Concepts Demonstrated
+## Planned
 
-- **Object-oriented programming** — game entities modelled as Python classes
-- **Grid-based level design** — mazes defined as 2D lists
-- **Keyboard event handling** — real-time input processing via Pygame's event system
-- **Rectangle-based collision detection** — axis-aligned bounding boxes for walls and pickups
-- **Delta time** — frame-rate-independent movement
-- **Game-loop & state machine** — clean separation of menu, play, pause, and end states
-- **Countdown timer & score tracking** — per-level time limits with cumulative scoring
+- Sound effects and music
+- High-score file persistence
+- Moving enemies
+- Time-bonus on level completion
+- Procedurally generated mazes
 
 ---
 
-## 🔮 Planned Improvements
-
-- [ ] Sound effects and background music
-- [ ] Persistent high-score leaderboard
-- [ ] Additional levels and procedurally generated mazes
-- [ ] Moving enemies and environmental hazards
-- [ ] Time-bonus rewards for fast completions
-
----
-
-## 👨‍💻 Author
-
-**Chronos2110**  
-Built as a mini-project for *Advanced Python Programming and Applications*.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+Built for *Advanced Python Programming and Applications*.
