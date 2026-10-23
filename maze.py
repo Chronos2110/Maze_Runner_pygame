@@ -24,6 +24,7 @@ def load_level_data(level_dict):
     player_start : (x, y) tuple - top-left pixel of the 'P' tile
     exit_rect    : pygame.Rect - the 'E' tile
     time_limit   : int - seconds allowed for this level
+    enemy_spawns : list of (x, y, axis) - axis is "H" or "V" (patrol direction)
 
     Grid -> pixel conversion:
         pixel_x = column_index * TILE_SIZE
@@ -33,6 +34,7 @@ def load_level_data(level_dict):
     coins = []
     player_start = (0, 0)
     exit_rect = pygame.Rect(0, 0, TILE_SIZE, TILE_SIZE)
+    enemy_spawns = []
 
     # enumerate() gives us BOTH the index and the item, so we know where
     # (which row / column) each character sits in the grid.
@@ -52,6 +54,8 @@ def load_level_data(level_dict):
                 player_start = (x, y)
             elif tile_char == "E":
                 exit_rect = pygame.Rect(x, y, TILE_SIZE, TILE_SIZE)
+            elif tile_char in ("H", "V"):
+                enemy_spawns.append((x, y, tile_char))   # enemy.py builds the Enemy
             # ' ' (empty path) needs no object - open floor is just "nothing".
 
-    return walls, coins, player_start, exit_rect, level_dict["time_limit"]
+    return walls, coins, player_start, exit_rect, level_dict["time_limit"], enemy_spawns

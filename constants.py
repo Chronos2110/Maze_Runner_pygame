@@ -33,6 +33,8 @@ HUD_LINE = (0, 229, 255)
 TEXT_COLOR = (230, 236, 255)
 TEXT_DIM = (130, 145, 180)
 WARNING_COLOR = (255, 90, 90)
+ENEMY_COLOR = (255, 70, 110)      # patrolling enemies (pink-red)
+HEART_COLOR = (255, 80, 100)
 OVERLAY_COLOR = (5, 8, 18, 200)   # 4th number = transparency (alpha)
 
 # ---------------------------------------------------------------- Gameplay
@@ -40,8 +42,17 @@ PLAYER_SPEED = 180        # pixels per SECOND (not per frame!)
 PLAYER_SIZE = 26          # a bit smaller than a tile so it fits through corridors
 COIN_SCORE = 100
 
+# ---- Enemies, lives and bonuses (new)
+ENEMY_SPEED = 90          # pixels per second - half the player's speed, so you can outrun them
+ENEMY_SIZE = 24
+START_LIVES = 3
+INVINCIBLE_TIME = 2.0     # seconds of protection after being hit
+TIME_BONUS_PER_SEC = 10   # points per second left when a level is finished
+HIGHSCORE_FILE = "highscore.txt"
+
 # ---------------------------------------------------------------- Levels
 # Legend:  W = Wall   P = Player start   C = Coin   E = Exit   ' ' = empty path
+#          H = enemy patrolling Horizontally   V = enemy patrolling Vertically
 # Every layout has exactly 16 rows of exactly 24 characters (24 x 40 = 960 px,
 # 16 x 40 = 640 px). "time_limit" is the number of seconds for that level.
 # Each row is one string; each character in the string is one tile.
@@ -56,13 +67,13 @@ LEVEL_1 = {
         "W W WWW W W W WWW WWW WW",
         "W     W W W W   W     WW",
         "W W WWW W W WWW W WWWWWW",
-        "W C W   W W   W W     WW",
+        "W C W   W WV  W W     WW",
         "W W W WWW W W W W WWW WW",
         "W W W   W   W W W W   WW",
         "WWW WWW WWW W W WWW W WW",
         "W   W   WC  W W     W WW",
         "W WWW WWW WWW WWW W W WW",
-        "W             W     WCWW",
+        "W      H      W     WCWW",
         "WWWWWWWWWWWWWWWWWWWWWWWW",
         "WWWWWWWWWWWWWWWWWWWWWWWW",
     ],
@@ -73,19 +84,19 @@ LEVEL_2 = {
     "time_limit": 70,
     "layout": [
         "WWWWWWWWWWWWWWWWWWWWWWWW",
-        "WPWC    W            CWW",
+        "WPWC    W  H         CWW",
         "W WWW W WWW WCWWW WWW WW",
         "W     W     W W       WW",
         "WWWW WWWWWW W W W WWWWWW",
         "W       W   W W   WE  WW",
         "W WW  W W WWW   WWW W WW",
-        "W W     W W   W W     WW",
+        "W W     W W  VW W     WW",
         "W W WWWWW W W W WWWWW WW",
         "W W C   W W W W W C   WW",
         "W WWWWW   WWW W W WWW WW",
         "W   W   W     W     W WW",
         "WWW W WWWWWWWWW WWW W WW",
-        "W   W        C      W WW",
+        "W   W     H  C      W WW",
         "WWWWWWWWWWWWWWWWWWWWWWWW",
         "WWWWWWWWWWWWWWWWWWWWWWWW",
     ],
@@ -100,15 +111,15 @@ LEVEL_3 = {
         "WW WW WWW WWWWW W     WW",
         "W   W   W W   C W     WW",
         "WWW WWW W W W W WWW W WW",
-        "W   W   W           W WW",
+        "W   W   W  H        W WW",
         "W WWW WWWWWWW WWWWW   WW",
-        "W  CW W     W     W WCWW",
+        "W  CW W     W     WVWCWW",
         "WWW W W WWW WW WW W W WW",
-        "W   W W W   W         WW",
+        "W   WVW W   W         WW",
         "W WWW W WCWWW WWWWW W WW",
         "W   W   W         W   WW",
         "W W WWWWW WWWWW     W WW",
-        "W W            CW   W WW",
+        "W W     H      CW   W WW",
         "WWWWWWWWWWWWWWWWWWWWWWWW",
         "WWWWWWWWWWWWWWWWWWWWWWWW",
     ],

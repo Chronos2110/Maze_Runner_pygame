@@ -13,10 +13,11 @@ Game states (stored as plain strings in self.state):
     "PLAYING" -> maze is active, timer is running
     "PAUSED"  -> frozen, overlay is shown
     "VICTORY" -> all 3 levels completed
-    "GAMEOVER"-> timer reached zero
+    "GAMEOVER"-> timer reached zero OR all lives lost
 """
 
 import math
+import os
 import pygame
 
 from constants import (
@@ -25,8 +26,14 @@ from constants import (
     COIN_COLOR, COIN_GLOW, EXIT_LOCKED, EXIT_UNLOCKED, HUD_BG, HUD_LINE,
     TEXT_COLOR, TEXT_DIM, WARNING_COLOR, OVERLAY_COLOR,
     PLAYER_SPEED, PLAYER_SIZE, COIN_SCORE, LEVELS,
+    ENEMY_COLOR, HEART_COLOR, START_LIVES, INVINCIBLE_TIME,
+    TIME_BONUS_PER_SEC, HIGHSCORE_FILE,
 )
 from maze import load_level_data
+from enemy import Enemy
+
+# The high-score file is stored next to main.py, wherever you run it from.
+HIGHSCORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), HIGHSCORE_FILE)
 
 
 # =====================================================================
@@ -112,8 +119,33 @@ class Game:
 
         self.state = "START"
         self.score = 0
+        self.lives = START_LIVES
+        self.invincible = 0.0         # seconds of protection left after a hit
+        self.message = ""             # short pop-up text, e.g. "TIME BONUS +350"
+        self.message_timer = 0.0
+        self.game_over_reason = ""
+        self.high_score = self.load_high_score()
         self.level_index = 0
         self.load_level(0)
+
+    # ------------------------------------------------------------ high score
+    def load_high_score(self):
+        """Read the saved best score; return 0 if there is no valid file."""
+        try:
+            with open(HIGHSCORE_PATH) as f:
+                return int(f.read().strip())
+        except (OSError, ValueError):
+            return 0
+
+    def save_high_score(self):
+        """Called when a run ends. Only writes if the score is a new record."""
+        if self.score > self.high_score:
+            self.high_score = self.score
+            try:
+                with open(HIGHSCORE_PATH, "w") as f:
+                    f.write(str(self.high_score))
+            except OSError:
+                pass                  # can't write? just skip - not worth crashing
 
     # ------------------------------------------------------------ setup
     def load_level(self, index):
@@ -121,16 +153,27 @@ class Game:
         self.level_index = index
         level = LEVELS[index]
         (self.walls, self.coins, start,
-         self.exit_rect, self.time_limit) = load_level_data(level)
+         self.exit_rect, self.time_limit, spawns) = load_level_data(level)
+        self.player_start = start
         self.player = Player(start[0], start[1])
+        self.enemies = [Enemy(x, y, axis) for x, y, axis in spawns]
         self.total_coins = len(self.coins)
         self.time_left = float(self.time_limit)
 
     def new_game(self):
         """Start again from Level 1 with a zero score."""
         self.score = 0
+        self.lives = START_LIVES
+        self.invincible = 0.0
+        self.message_timer = 0.0
         self.load_level(0)
         self.state = "PLAYING"
+
+    def end_game(self, new_state, reason=""):
+        """Single place for ending a run: set state and save the record."""
+        self.state = new_state
+        self.game_over_reason = reason
+        self.save_high_score()
 
     # ------------------------------------------------------------ main loop
     def run(self):
@@ -193,8 +236,12 @@ class Game:
         self.time_left -= dt
         if self.time_left <= 0:
             self.time_left = 0
-            self.state = "GAMEOVER"                           # PLAYING -> GAMEOVER
+            self.end_game("GAMEOVER", "TIME'S UP!")           # PLAYING -> GAMEOVER
             return
+
+        # Count down the timers for invincibility and the pop-up message.
+        self.invincible = max(0.0, self.invincible - dt)
+        self.message_timer = max(0.0, self.message_timer - dt)
 
         # ---- 2. Read held-down keys (Arrow keys AND WASD)
         keys = pygame.key.get_pressed()
@@ -225,12 +272,34 @@ class Game:
                 self.coins.remove(coin)
                 self.score += COIN_SCORE
 
-        # ---- 5. Exit gate: only works once every coin is collected.
+        # ---- 5. Enemies: patrol, then check if one touched the player.
+        for enemy in self.enemies:
+            enemy.update(dt, self.walls)
+            # Shrink the hitbox a little so near-misses feel fair.
+            if self.invincible == 0 and self.player.rect.colliderect(enemy.rect.inflate(-6, -6)):
+                self.hit_player()
+                return
+
+        # ---- 6. Exit gate: only works once every coin is collected.
         if len(self.coins) == 0 and self.player.rect.colliderect(self.exit_rect):
+            bonus = int(self.time_left) * TIME_BONUS_PER_SEC   # faster = more points
+            self.score += bonus
+            self.message = "TIME BONUS +%d" % bonus
+            self.message_timer = 2.0
             if self.level_index + 1 < len(LEVELS):
                 self.load_level(self.level_index + 1)         # next level
+                self.invincible = 1.0                         # brief grace on arrival
             else:
-                self.state = "VICTORY"                        # PLAYING -> VICTORY
+                self.end_game("VICTORY")                      # PLAYING -> VICTORY
+
+    def hit_player(self):
+        """An enemy touched the player: lose a life and go back to the start."""
+        self.lives -= 1
+        if self.lives <= 0:
+            self.end_game("GAMEOVER", "CAUGHT!")              # PLAYING -> GAMEOVER
+            return
+        self.player = Player(*self.player_start)
+        self.invincible = INVINCIBLE_TIME
 
     # ------------------------------------------------------------ drawing helpers
     def draw_text(self, text, font, color, center=None, topleft=None):
@@ -273,9 +342,26 @@ class Game:
             pygame.draw.line(self.screen, (255, 255, 255), (cx - 6, cy - 6), (cx + 6, cy + 6), 3)
             pygame.draw.line(self.screen, (255, 255, 255), (cx - 6, cy + 6), (cx + 6, cy - 6), 3)
 
+        # Enemies: a red square with two white "eyes".
+        for enemy in self.enemies:
+            body = enemy.rect
+            pygame.draw.rect(self.screen, ENEMY_COLOR, body, border_radius=6)
+            pygame.draw.rect(self.screen, (255, 255, 255), body, 2, border_radius=6)
+            for eye_x in (body.centerx - 5, body.centerx + 5):
+                pygame.draw.circle(self.screen, (255, 255, 255), (eye_x, body.centery - 2), 3)
+                pygame.draw.circle(self.screen, (20, 20, 30), (eye_x, body.centery - 2), 1)
+
         # Player: white disc with a cyan ring (the hitbox is still the rect).
-        pygame.draw.circle(self.screen, PLAYER_COLOR, self.player.rect.center, PLAYER_SIZE // 2)
-        pygame.draw.circle(self.screen, PLAYER_ACCENT, self.player.rect.center, PLAYER_SIZE // 2, 3)
+        # While invincible the player blinks (hidden every other 100 ms).
+        blink_off = self.invincible > 0 and (pygame.time.get_ticks() // 100) % 2 == 0
+        if not blink_off:
+            pygame.draw.circle(self.screen, PLAYER_COLOR, self.player.rect.center, PLAYER_SIZE // 2)
+            pygame.draw.circle(self.screen, PLAYER_ACCENT, self.player.rect.center, PLAYER_SIZE // 2, 3)
+
+        # Pop-up message (time bonus) near the top of the maze.
+        if self.message_timer > 0:
+            self.draw_text(self.message, self.font_med, COIN_COLOR,
+                           center=(SCREEN_WIDTH // 2, 20))
 
     def draw_hud(self):
         """Bottom information panel."""
@@ -291,22 +377,31 @@ class Game:
                        self.font_med, TEXT_COLOR, topleft=(24, mid - 24))
         self.draw_text(level_name, self.font_small, TEXT_DIM, topleft=(24, mid + 6))
 
-        self.draw_text("SCORE", self.font_small, TEXT_DIM, topleft=(260, mid - 24))
-        self.draw_text(str(self.score), self.font_med, COIN_COLOR, topleft=(260, mid + 2))
+        self.draw_text("SCORE", self.font_small, TEXT_DIM, topleft=(190, mid - 24))
+        self.draw_text(str(self.score), self.font_med, COIN_COLOR, topleft=(190, mid + 2))
 
-        self.draw_text("COINS", self.font_small, TEXT_DIM, topleft=(420, mid - 24))
+        self.draw_text("COINS", self.font_small, TEXT_DIM, topleft=(320, mid - 24))
         self.draw_text("%d/%d" % (collected, self.total_coins), self.font_med,
-                       TEXT_COLOR, topleft=(420, mid + 2))
+                       TEXT_COLOR, topleft=(320, mid + 2))
+
+        # Lives: one filled heart per life remaining, hollow for lost ones.
+        self.draw_text("LIVES", self.font_small, TEXT_DIM, topleft=(430, mid - 24))
+        for i in range(START_LIVES):
+            centre = (442 + i * 30, mid + 14)
+            if i < self.lives:
+                pygame.draw.circle(self.screen, HEART_COLOR, centre, 9)
+            else:
+                pygame.draw.circle(self.screen, HEART_COLOR, centre, 9, 2)
 
         # Timer text turns red in the last 10 seconds.
         low_time = self.time_left <= 10
         time_color = WARNING_COLOR if low_time else TEXT_COLOR
-        self.draw_text("TIME", self.font_small, TEXT_DIM, topleft=(580, mid - 24))
+        self.draw_text("TIME", self.font_small, TEXT_DIM, topleft=(570, mid - 24))
         self.draw_text("%d s" % math.ceil(self.time_left), self.font_med,
-                       time_color, topleft=(580, mid + 2))
+                       time_color, topleft=(570, mid + 2))
 
         # Progress bar: width = fraction of time remaining.
-        bar = pygame.Rect(700, mid - 10, 230, 20)
+        bar = pygame.Rect(670, mid - 10, 260, 20)
         fraction = self.time_left / self.time_limit
         pygame.draw.rect(self.screen, WALL_FILL, bar, border_radius=6)
         fill = pygame.Rect(bar.x, bar.y, int(bar.width * fraction), bar.height)
@@ -337,6 +432,10 @@ class Game:
                            self.font_small, TEXT_DIM, center=(cx, 330))
             self.draw_text("Red gate = locked     Green gate = open",
                            self.font_small, TEXT_DIM, center=(cx, 365))
+            self.draw_text("Avoid the red patrols - you have 3 lives. Finish fast for a time bonus!",
+                           self.font_small, ENEMY_COLOR, center=(cx, 400))
+            self.draw_text("HIGH SCORE: %d" % self.high_score,
+                           self.font_med, COIN_COLOR, center=(cx, 560))
             # Blinking prompt: visible for half of every second.
             if (pygame.time.get_ticks() // 500) % 2 == 0:
                 self.draw_text("Press ENTER to start", self.font_big, COIN_COLOR, center=(cx, 470))
@@ -352,14 +451,16 @@ class Game:
                 ("Press R to restart", self.font_med, TEXT_DIM),
             ])
         elif self.state == "GAMEOVER":
-            self.draw_overlay("TIME'S UP!", WARNING_COLOR, [
+            self.draw_overlay(self.game_over_reason, WARNING_COLOR, [
                 ("Final score: %d" % self.score, self.font_big, COIN_COLOR),
+                ("High score: %d" % self.high_score, self.font_med, TEXT_COLOR),
                 ("ENTER = try again     ESC = menu", self.font_med, TEXT_DIM),
             ])
         elif self.state == "VICTORY":
             self.draw_overlay("YOU ESCAPED!", EXIT_UNLOCKED, [
                 ("All 3 levels complete", self.font_med, TEXT_COLOR),
                 ("Final score: %d" % self.score, self.font_big, COIN_COLOR),
+                ("High score: %d" % self.high_score, self.font_med, TEXT_COLOR),
                 ("ENTER = play again     ESC = menu", self.font_med, TEXT_DIM),
             ])
 
